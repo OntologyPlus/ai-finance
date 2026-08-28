@@ -1,0 +1,577 @@
+cases:
+  - case_id: BUD-001
+    category: budget_ab_classification
+    description: "A类预算项目必须有预先审批才能执行"
+    rule_id: HR-004
+    context:
+      budget_category: "A"
+      has_pre_approval: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: BUD-002
+    category: budget_ab_classification
+    description: "A类预算项目未审批即执行应被拦截"
+    rule_id: HR-004
+    context:
+      budget_category: "A"
+      has_pre_approval: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: BUD-003
+    category: budget_ab_classification
+    description: "B类预算项目不受先批后用约束"
+    rule_id: HR-004
+    context:
+      budget_category: "B"
+      has_pre_approval: false
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: BUD-004
+    category: budget_ab_classification
+    description: "A类预算已审批通过应放行"
+    rule_id: HR-004
+    context:
+      budget_category: "A"
+      has_pre_approval: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: BUD-005
+    category: budget_ab_classification
+    description: "B类预算膨胀比例超过30%应触发预警"
+    rule_id: SR-007
+    context:
+      b_granted_total: 400000
+      b_annual_total: 1000000
+    expected:
+      passed: false
+
+  - case_id: BUD-006
+    category: budget_strategic_ratio
+    description: "战略预算组合比例未经管委会决定应被拦截"
+    rule_id: HR-007
+    context:
+      ratio_decided_by_committee: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: BUD-007
+    category: budget_strategic_ratio
+    description: "战略预算组合比例经管委会决定应放行"
+    rule_id: HR-007
+    context:
+      ratio_decided_by_committee: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: BUD-008
+    category: budget_strategic_ratio
+    description: "跨象限调拨未经管委会批准应被拦截"
+    rule_id: HR-008
+    context:
+      cross_quadrant: true
+      committee_approved: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: BUD-009
+    category: budget_b_class_inflation
+    description: "B类膨胀比例25%未超过30%上限应正常"
+    rule_id: SR-007
+    context:
+      b_granted_total: 250000
+      b_annual_total: 1000000
+    expected:
+      passed: true
+
+  - case_id: BUD-010
+    category: budget_b_class_inflation
+    description: "B类膨胀比例35%超过30%上限应预警"
+    rule_id: SR-007
+    context:
+      b_granted_total: 350000
+      b_annual_total: 1000000
+    expected:
+      passed: false
+
+  - case_id: BUD-011
+    category: budget_b_class_inflation
+    description: "B类膨胀比例恰好30%应正常"
+    rule_id: SR-007
+    context:
+      b_granted_total: 300000
+      b_annual_total: 1000000
+    expected:
+      passed: true
+
+  - case_id: EXP-EVAL-001
+    category: expense_control_routing
+    description: "强管控科目报销须严格审批"
+    rule_id: HR-001
+    context:
+      budget_id: "BG-2026-001"
+      has_budget: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: EXP-EVAL-002
+    category: expense_control_routing
+    description: "无预算的报销单应被拦截"
+    rule_id: HR-001
+    context:
+      budget_id: null
+      has_budget: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: EXP-EVAL-009
+    category: expense_dual_approval
+    description: "双签闭环-业务和财经BP均签认应放行"
+    rule_id: HR-005
+    context:
+      business_bp_signed: true
+      finance_bp_signed: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: EXP-EVAL-010
+    category: expense_dual_approval
+    description: "双签闭环-仅业务BP签认应拦截"
+    rule_id: HR-005
+    context:
+      business_bp_signed: true
+      finance_bp_signed: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: EXP-EVAL-014
+    category: expense_writeoff
+    description: "核销金额不超过可用额度应放行"
+    rule_id: HR-002
+    context:
+      write_off_amount: 50000
+      available_amount: 100000
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: EXP-EVAL-015
+    category: expense_writeoff
+    description: "核销金额超过可用额度应拦截"
+    rule_id: HR-002
+    context:
+      write_off_amount: 150000
+      available_amount: 100000
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: EXP-EVAL-019
+    category: expense_no_budget_reject
+    description: "无预算报销应被硬规则拦截"
+    rule_id: HR-001
+    context:
+      budget_id: null
+      has_budget: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: ALT-EVAL-001
+    category: alert_color_classification
+    description: "月度执行进度106%应触发蓝色预警"
+    rule_id: SR-001
+    context:
+      execution_rate: 106
+    expected:
+      passed: false
+
+  - case_id: ALT-EVAL-002
+    category: alert_color_classification
+    description: "月度执行进度112%应触发黄色预警"
+    rule_id: SR-002
+    context:
+      execution_rate: 112
+    expected:
+      passed: false
+
+  - case_id: ALT-EVAL-003
+    category: alert_color_classification
+    description: "月度执行进度超过年度预算应触发红色预警"
+    rule_id: SR-003
+    context:
+      execution_rate: 105
+      annual_budget: 1000000
+      used_amount: 1050000
+    expected:
+      passed: false
+
+  - case_id: ALT-EVAL-004
+    category: alert_color_classification
+    description: "季度滚动预测106%应触发蓝色预警"
+    rule_id: SR-004
+    context:
+      forecast_rate: 106
+    expected:
+      passed: false
+
+  - case_id: ALT-EVAL-005
+    category: alert_color_classification
+    description: "季度滚动预测112%应触发黄色预警"
+    rule_id: SR-005
+    context:
+      forecast_rate: 112
+    expected:
+      passed: false
+
+  - case_id: ALT-EVAL-006
+    category: alert_color_classification
+    description: "季度滚动预测116%应触发红色预警"
+    rule_id: SR-006
+    context:
+      forecast_rate: 116
+    expected:
+      passed: false
+
+  - case_id: ALT-EVAL-007
+    category: alert_color_classification
+    description: "月度执行进度103%不应触发蓝色预警"
+    rule_id: SR-001
+    context:
+      execution_rate: 103
+    expected:
+      passed: true
+
+  - case_id: ALT-EVAL-008
+    category: alert_color_classification
+    description: "季度滚动预测104%不应触发蓝色预警"
+    rule_id: SR-004
+    context:
+      forecast_rate: 104
+    expected:
+      passed: true
+
+  - case_id: ALT-EVAL-023
+    category: alert_not_overrun_permit
+    description: "预警触发后放行支出应被拦截"
+    rule_id: HR-003
+    context:
+      alert_triggered: true
+      expense_approved: true
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: ALT-EVAL-024
+    category: alert_not_overrun_permit
+    description: "预警触发后支出未批准应放行"
+    rule_id: HR-003
+    context:
+      alert_triggered: true
+      expense_approved: false
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: ALT-EVAL-025
+    category: alert_not_overrun_permit
+    description: "无预警时支出批准应放行"
+    rule_id: HR-003
+    context:
+      alert_triggered: false
+      expense_approved: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: ANA-001
+    category: gap_analysis
+    description: "GAP1目标差距-战略目标与预算差距识别"
+    rule_id: HR-012
+    context:
+      has_unclosed_alert: true
+      reported_in_meeting: true
+    expected:
+      passed: true
+      output: "PASS"
+
+  - case_id: ANA-004
+    category: gap_analysis
+    description: "未闭环预警须在经营分析会汇报"
+    rule_id: HR-012
+    context:
+      has_unclosed_alert: true
+      reported_in_meeting: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: ANA-013
+    category: quadrant_assignment
+    description: "跨象限调拨须管委会批准"
+    rule_id: HR-008
+    context:
+      cross_quadrant: true
+      committee_approved: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-001
+    category: hard_rules_cannot_violate
+    description: "HR-001: 支出必须有对应预算-违反应BLOCK"
+    rule_id: HR-001
+    context:
+      budget_id: null
+      has_budget: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-002
+    category: hard_rules_cannot_violate
+    description: "HR-002: 预算核销不可超额-违反应BLOCK"
+    rule_id: HR-002
+    context:
+      write_off_amount: 200000
+      available_amount: 100000
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-003
+    category: hard_rules_cannot_violate
+    description: "HR-003: 预警触发≠超支许可-违反应BLOCK"
+    rule_id: HR-003
+    context:
+      alert_triggered: true
+      expense_approved: true
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-004
+    category: hard_rules_cannot_violate
+    description: "HR-004: 先批后用(A类)-违反应BLOCK"
+    rule_id: HR-004
+    context:
+      budget_category: "A"
+      has_pre_approval: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-005
+    category: hard_rules_cannot_violate
+    description: "HR-005: 双签闭环-违反应BLOCK"
+    rule_id: HR-005
+    context:
+      business_bp_signed: true
+      finance_bp_signed: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-006
+    category: hard_rules_cannot_violate
+    description: "HR-006: 税务申报数据必须完整准确-违反应BLOCK"
+    rule_id: HR-006
+    context:
+      tax_data_complete: false
+      tax_data_accurate: true
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-007
+    category: hard_rules_cannot_violate
+    description: "HR-007: 战略预算组合比例由管委会决定-违反应BLOCK"
+    rule_id: HR-007
+    context:
+      ratio_decided_by_committee: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-008
+    category: hard_rules_cannot_violate
+    description: "HR-008: 跨象限调拨须管委会批准-违反应BLOCK"
+    rule_id: HR-008
+    context:
+      cross_quadrant: true
+      committee_approved: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-009
+    category: hard_rules_cannot_violate
+    description: "HR-009: 里程碑延期未报备不得推进-违反应BLOCK"
+    rule_id: HR-009
+    context:
+      milestone_delayed: true
+      delay_reported: false
+      proceeding_next: true
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-010
+    category: hard_rules_cannot_violate
+    description: "HR-010: 实际支出不得超出里程碑计划-违反应BLOCK"
+    rule_id: HR-010
+    context:
+      actual_amount: 150000
+      milestone_planned_amount: 100000
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-011
+    category: hard_rules_cannot_violate
+    description: "HR-011: 里程碑预警后新增支出须审批-违反应BLOCK"
+    rule_id: HR-011
+    context:
+      alert_triggered: true
+      has_new_expense: true
+      new_expense_has_approval: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-012
+    category: hard_rules_cannot_violate
+    description: "HR-012: 未闭环预警须在经营分析会汇报-违反应BLOCK"
+    rule_id: HR-012
+    context:
+      has_unclosed_alert: true
+      reported_in_meeting: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: RULE-013
+    category: soft_rules_default_execution
+    description: "SR-001: 月度执行进度蓝色阈值默认执行"
+    rule_id: SR-001
+    context:
+      execution_rate: 106
+    expected:
+      passed: false
+      output: "PASS"
+
+  - case_id: RULE-014
+    category: soft_rules_default_execution
+    description: "SR-002: 月度执行进度黄色阈值默认执行"
+    rule_id: SR-002
+    context:
+      execution_rate: 112
+    expected:
+      passed: false
+      output: "PASS"
+
+  - case_id: RULE-015
+    category: soft_rules_default_execution
+    description: "SR-007: B类膨胀比例上限默认执行"
+    rule_id: SR-007
+    context:
+      b_granted_total: 400000
+      b_annual_total: 1000000
+    expected:
+      passed: false
+      output: "PASS"
+
+  - case_id: RULE-024
+    category: atomic_rule_assembly
+    description: "费用报销场景-硬规则+软规则组合执行"
+    scene_id: fin.expense_reimbursement
+    context:
+      budget_id: "BG-2026-001"
+      has_budget: true
+      write_off_amount: 50000
+      available_amount: 100000
+      business_bp_signed: true
+      finance_bp_signed: true
+      expense_amount: 60000
+    expected:
+      blocked: false
+
+  - case_id: RULE-025
+    category: atomic_rule_assembly
+    description: "费用报销场景-无预算应被拦截"
+    scene_id: fin.expense_reimbursement
+    context:
+      budget_id: null
+      has_budget: false
+      write_off_amount: 50000
+      available_amount: 100000
+      business_bp_signed: true
+      finance_bp_signed: true
+      expense_amount: 60000
+    expected:
+      blocked: true
+
+  - case_id: EVO-001
+    category: rule_change_passthrough
+    description: "软规则参数变更应传递到规则引擎"
+    rule_id: SR-001
+    context:
+      execution_rate: 108
+    expected:
+      passed: false
+
+  - case_id: EVO-003
+    category: rule_change_passthrough
+    description: "硬规则不可被软规则覆盖"
+    rule_id: HR-001
+    context:
+      budget_id: null
+      has_budget: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: EVO-007
+    category: safety_boundary
+    description: "安全边界-硬规则不可被修改"
+    rule_id: HR-001
+    context:
+      budget_id: null
+      has_budget: false
+    expected:
+      passed: false
+      output: "BLOCK"
+
+  - case_id: EVO-008
+    category: safety_boundary
+    description: "安全边界-软规则输出始终为PASS"
+    rule_id: SR-001
+    context:
+      execution_rate: 120
+    expected:
+      output: "PASS"
+
+  - case_id: EVO-009
+    category: safety_boundary
+    description: "安全边界-推理规则不可覆盖硬规则"
+    rule_id: HR-003
+    context:
+      alert_triggered: true
+      expense_approved: true
+    expected:
+      passed: false
+      output: "BLOCK"

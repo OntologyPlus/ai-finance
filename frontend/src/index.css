@@ -1,0 +1,172 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-brand: #3b82f6;
+  --color-brand-light: #60a5fa;
+  --color-brand-dark: #1d4ed8;
+  --color-finance: #1e3a8a;
+  --color-finance-light: #3b82f6;
+  --color-health: #22c55e;
+  --color-health-light: #4ade80;
+  --color-alert: #ef4444;
+  --color-warning: #f59e0b;
+  --color-compliance: #10b981;
+  --color-surface: #f8fafc;
+  --color-surface-card: rgba(255, 255, 255, 0.8);
+  --color-surface-hover: rgba(255, 255, 255, 0.9);
+  --color-border: rgba(148, 163, 184, 0.2);
+  --color-border-strong: rgba(148, 163, 184, 0.4);
+  --sidebar-width: 260px;
+  --header-height: 64px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-surface);
+  color: #1e293b;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+@layer components {
+  /* v10.0: 静态卡片（替换原 glass-card，删除 hover 阴影/位移） */
+  .surface-card {
+    @apply bg-white border border-surface-200 rounded-xl p-4;
+  }
+
+  /* v12.2 兼容：旧 glass-card 别名（指向 surface-card，避免 Modal 打开透明） */
+  .glass-card {
+    @apply bg-white border border-surface-200 rounded-xl;
+  }
+  .glass-card-static {
+    @apply bg-white border border-surface-200 rounded-xl p-4;
+  }
+
+  .surface-card-static {
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  /* v10.0: 紧凑 KPI 数字卡（固定高度 88px） */
+  .kpi-card {
+    @apply bg-white border border-surface-200 rounded-xl px-4 py-3 flex flex-col justify-between;
+    min-height: 88px;
+  }
+
+  /* v10.0: 折叠容器标题区 */
+  .section-title {
+    @apply text-sm font-semibold text-finance-800 flex items-center gap-2;
+  }
+
+  .section-hint {
+    @apply text-[11px] text-surface-500 mt-0.5;
+  }
+
+  .badge-red {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(239, 68, 68, 0.1);
+    color: #dc2626;
+  }
+
+  .badge-orange {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(249, 115, 22, 0.1);
+    color: #c2410c;
+  }
+
+  .badge-amber {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(245, 158, 11, 0.1);
+    color: #b45309;
+  }
+
+  .badge-green {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(34, 197, 94, 0.1);
+    color: #15803d;
+  }
+
+  .badge-blue {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(59, 130, 246, 0.1);
+    color: #1d4ed8;
+  }
+
+  .badge-purple {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(139, 92, 246, 0.1);
+    color: #7c3aed;
+  }
+
+  .badge-gray {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium;
+    background: rgba(100, 116, 139, 0.1);
+    color: #475569;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150;
+    background: #1d4ed8;
+    color: white;
+  }
+
+  .btn-primary:hover {
+    background: #1e40af;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors duration-150;
+    background: #ffffff;
+    border: 1px solid var(--color-border);
+    color: #475569;
+  }
+
+  .btn-secondary:hover {
+    background: #f8fafc;
+    border-color: var(--color-border-strong);
+  }
+
+  .data-card {
+    @apply surface-card;
+  }
+
+  .metric-value {
+    @apply text-2xl font-bold font-display tracking-tight;
+    color: #1e293b;
+  }
+
+  .metric-label {
+    @apply text-xs font-medium uppercase tracking-wider;
+    color: #94a3b8;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* v10.0: 删除 .ambient-bg 漂移动画（视觉降噪） */

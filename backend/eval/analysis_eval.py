@@ -1,0 +1,112 @@
+from typing import Any, Dict, List
+
+
+class AnalysisEvalCases:
+    @staticmethod
+    def get_cases() -> List[Dict[str, Any]]:
+        return [
+            {
+                "case_id": "ANA-001",
+                "category": "gap_analysis",
+                "description": "GAP1目标差距-战略目标与预算差距识别",
+                "rule_id": "HR-012",
+                "context": {"has_unclosed_alert": True, "reported_in_meeting": True},
+                "expected": {"passed": True, "output": "PASS"},
+            },
+            {
+                "case_id": "ANA-002",
+                "category": "gap_analysis",
+                "description": "GAP2执行差距-计划与实际执行差距识别",
+                "rule_id": "RR-004",
+                "context": {"execution_rate": 0.45, "time_progress": 0.42},
+                "expected": {"passed": True},
+            },
+            {
+                "case_id": "ANA-003",
+                "category": "gap_analysis",
+                "description": "GAP3预测变动-当前预测与原计划差距",
+                "rule_id": "RR-004",
+                "context": {"execution_rate": 0.85, "time_progress": 0.42},
+                "expected": {"passed": True},
+            },
+            {
+                "case_id": "ANA-004",
+                "category": "gap_analysis",
+                "description": "未闭环预警须在经营分析会汇报",
+                "rule_id": "HR-012",
+                "context": {"has_unclosed_alert": True, "reported_in_meeting": False},
+                "expected": {"passed": False, "output": "BLOCK"},
+            },
+            {
+                "case_id": "ANA-005",
+                "category": "gap_analysis",
+                "description": "无未闭环预警时经营分析会正常",
+                "rule_id": "HR-012",
+                "context": {"has_unclosed_alert": False, "reported_in_meeting": False},
+                "expected": {"passed": True, "output": "PASS"},
+            },
+            {
+                "case_id": "ANA-006",
+                "category": "list_generation",
+                "description": "List1必赢清单-高优先级差距生成",
+                "rule_id": "SR-008",
+                "context": {"deviation_amount": 600000},
+                "expected": {"passed": False},
+            },
+            {
+                "case_id": "ANA-007",
+                "category": "list_generation",
+                "description": "List2改善清单-中等优先级差距生成",
+                "rule_id": "SR-001",
+                "context": {"execution_rate": 108},
+                "expected": {"passed": False},
+            },
+            {
+                "case_id": "ANA-008",
+                "category": "list_generation",
+                "description": "List3资源清单-资源需求识别",
+                "rule_id": "SR-011",
+                "context": {"annual_budget": 600000, "single_item_amount": 100000},
+                "expected": {"passed": True},
+            },
+            {
+                "case_id": "ANA-009",
+                "category": "list_generation",
+                "description": "List生成-偏差金额低于阈值不生成",
+                "rule_id": "SR-008",
+                "context": {"deviation_amount": 300000},
+                "expected": {"passed": True},
+            },
+            {
+                "case_id": "ANA-010",
+                "category": "list_generation",
+                "description": "List生成-执行率正常不生成改善清单",
+                "rule_id": "SR-001",
+                "context": {"execution_rate": 100},
+                "expected": {"passed": True},
+            },
+            {
+                "case_id": "ANA-011",
+                "category": "quadrant_assignment",
+                "description": "发展象限-战略举措对标的预算项目",
+                "rule_id": "HR-008",
+                "context": {"cross_quadrant": True, "committee_approved": True},
+                "expected": {"passed": True, "output": "PASS"},
+            },
+            {
+                "case_id": "ANA-012",
+                "category": "quadrant_assignment",
+                "description": "收缩象限-预算缩减项目",
+                "rule_id": "HR-008",
+                "context": {"cross_quadrant": False, "committee_approved": False},
+                "expected": {"passed": True, "output": "PASS"},
+            },
+            {
+                "case_id": "ANA-013",
+                "category": "quadrant_assignment",
+                "description": "跨象限调拨须管委会批准",
+                "rule_id": "HR-008",
+                "context": {"cross_quadrant": True, "committee_approved": False},
+                "expected": {"passed": False, "output": "BLOCK"},
+            },
+        ]

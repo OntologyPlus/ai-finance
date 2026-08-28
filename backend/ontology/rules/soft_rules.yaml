@@ -1,0 +1,54 @@
+SR-001:
+  threshold_percentage: 105
+  unit: "%"
+  description: "月度执行进度蓝色阈值"
+
+SR-002:
+  threshold_percentage: 110
+  unit: "%"
+  description: "月度执行进度黄色阈值"
+
+SR-003:
+  threshold_type: "over_annual_budget"
+  description: "月度执行进度红色阈值(超年度预算)"
+
+SR-004:
+  threshold_percentage: 105
+  unit: "%"
+  description: "季度滚动预测蓝色阈值"
+
+SR-005:
+  threshold_percentage: 110
+  unit: "%"
+  description: "季度滚动预测黄色阈值"
+
+SR-006:
+  threshold_percentage: 115
+  unit: "%"
+  description: "季度滚动预测红色阈值"
+
+SR-007:
+  max_ratio_percentage: 30
+  unit: "%"
+  description: "B类膨胀比例上限"
+
+SR-008:
+  deviation_amount: 500000
+  unit: "CNY"
+  description: "单项目/单供应商偏差红色阈值"
+
+SR-009:
+  approval_threshold: 50000
+  unit: "CNY"
+  description: "部门负责人审批金额门槛"
+
+SR-010:
+  approval_threshold: 200000
+  unit: "CNY"
+  description: "中心总经理审批金额门槛"
+
+SR-011:
+  annual_budget_threshold: 500000
+  single_item_threshold: 200000
+  unit: "CNY"
+  description: "项目化管理门槛(年度预算超50万或新增项目单笔超20万)"

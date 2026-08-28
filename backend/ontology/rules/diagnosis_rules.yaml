@@ -1,0 +1,95 @@
+# 9 张诊断卡的信号灯规则（v3.0 新增）
+# 格式：每个 card_type 含 green/yellow/red 三个布尔条件（python 表达式）
+# 高级用户可通过 /api/analysis/signal-light-rules 接口调整
+# 默认走引擎内硬编码阈值；此 YAML 作为"配置可调整"旁路
+#
+# 变量说明（每张卡的 metrics_json 字段）：
+#   revenue_health: progress_deviation_pp / budget_achievement_pct / time_progress_pct / budget_gap_pp
+#   gross_margin: margin_deviation_pp
+#   expense_pacing: promotion_deviation_pp / maintenance_deviation_pp / hr_cost_deviation_pp
+#   product_mix: mature_share_pct / growth_share_pct / decline_share_pct
+#   channel_split: growth_gap_pp
+#   profit_authenticity: diff_pp / non_operating_share_pct
+#   commercialization_efficiency: promo_to_revenue_pct
+#   policy_risk: vbp_revenue_share_pct
+#   cashflow_quality: non_operating_share_pct
+
+revenue_health:
+  green: "progress_deviation_pp > 2 AND budget_achievement_pct >= time_progress_pct"
+  yellow: "-1 <= progress_deviation_pp <= 2"
+  red: "progress_deviation_pp < -1 OR budget_gap_pp > 3"
+  thresholds:
+    progress_deviation_green: 2
+    progress_deviation_yellow: -1
+    budget_gap_red: 3
+
+gross_margin:
+  green: "margin_deviation_pp > 1"
+  yellow: "-1 <= margin_deviation_pp <= 1"
+  red: "margin_deviation_pp < -1"
+  thresholds:
+    margin_deviation_green: 1
+    margin_deviation_yellow: -1
+
+expense_pacing:
+  green: "promotion_deviation_pp > -1"
+  yellow: "-3 <= promotion_deviation_pp <= -1"
+  red: "promotion_deviation_pp < -3"
+  thresholds:
+    promotion_deviation_green: -1
+    promotion_deviation_yellow: -3
+
+product_mix:
+  green: "50 <= mature_share_pct <= 70 AND growth_share_pct >= 25"
+  yellow: "mature_share_pct > 70 OR growth_share_pct < 15"
+  red: "decline_share_pct > 15"
+  thresholds:
+    mature_share_green_low: 50
+    mature_share_green_high: 70
+    growth_share_green: 25
+    growth_share_yellow: 15
+    decline_share_red: 15
+
+channel_split:
+  green: "abs(growth_gap_pp) < 5"
+  yellow: "5 <= abs(growth_gap_pp) < 10"
+  red: "abs(growth_gap_pp) >= 10"
+  thresholds:
+    growth_gap_yellow: 5
+    growth_gap_red: 10
+
+profit_authenticity:
+  green: "diff_pp < 5 AND non_operating_share_pct < 10"
+  yellow: "diff_pp < 10 AND non_operating_share_pct < 30"
+  red: "diff_pp >= 10 OR non_operating_share_pct >= 30"
+  thresholds:
+    diff_yellow: 5
+    diff_red: 10
+    non_operating_yellow: 10
+    non_operating_red: 30
+
+commercialization_efficiency:
+  green: "15 <= promo_to_revenue_pct <= 25"
+  yellow: "promo_to_revenue_pct < 15 OR 25 < promo_to_revenue_pct <= 30"
+  red: "promo_to_revenue_pct < 12 OR promo_to_revenue_pct > 30"
+  thresholds:
+    promo_ratio_green_low: 15
+    promo_ratio_green_high: 25
+    promo_ratio_red_low: 12
+    promo_ratio_red_high: 30
+
+policy_risk:
+  green: "vbp_revenue_share_pct < 20"
+  yellow: "20 <= vbp_revenue_share_pct < 40"
+  red: "vbp_revenue_share_pct >= 40"
+  thresholds:
+    vbp_share_yellow: 20
+    vbp_share_red: 40
+
+cashflow_quality:
+  green: "non_operating_share_pct < 10"
+  yellow: "10 <= non_operating_share_pct < 30"
+  red: "non_operating_share_pct >= 30"
+  thresholds:
+    non_operating_yellow: 10
+    non_operating_red: 30
