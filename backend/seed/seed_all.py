@@ -18,9 +18,20 @@ from models.caliber import CaliberMapping, CaliberDifference
 from models.transfer import BudgetTransferRequest
 from models.cash_flow import CashFlowPlan, CashPool, PaymentSchedule, ReceiptForecast
 from models.cost_center import CostCenter, StandardCost
-from models.hcp_compliance import HCP, ComplianceRule
+from models.hcp_compliance import HCP, ComplianceRule, HCPActivityGuest, HCPSignEvidence, HCPKnowBook
 from models.rnd_pipeline import Pipeline, RnDProject, RnDMilestone, ClinicalTrial
 from models.scenario import Scenario, ElasticBudget, BudgetReserve
+from models.expense_ops import (
+    ExpenseLine,
+    ExpenseSettlement,
+    InvoiceMerchantProfile,
+    OcrRun,
+    OcrImage,
+    ThreeFlowMismatch,
+    ThreeFlowWhitelist,
+)
+from models.budget_version import BudgetVersion, BudgetVersionItem, BudgetAdjustmentRecord, BudgetReason
+from models.rule_catalog import RuleCatalogVersion, DecisionRulePin
 
 from seed.seed_budget import seed_budget
 from seed.seed_organization import seed_organization
@@ -37,6 +48,7 @@ from seed.cost_center import seed_cost_center
 from seed.hcp import seed_hcp
 from seed.rnd_pipeline import seed_rnd_pipeline
 from seed.scenario import seed_scenario
+from seed.seed_operational import seed_operational
 from models.ontology import OntologyObjectInstance, OntologyRelationInstance, OntologyEventRecord, OntologyVersionSnapshot, OntologyConsistencyIssue
 from models.user import User
 
@@ -53,6 +65,22 @@ CLEAR_ORDER = [
     OntologyRelation,
     OntologyObject,
     OntologyRule,
+    DecisionRulePin,
+    RuleCatalogVersion,
+    OcrImage,
+    OcrRun,
+    ThreeFlowMismatch,
+    ThreeFlowWhitelist,
+    InvoiceMerchantProfile,
+    ExpenseLine,
+    ExpenseSettlement,
+    HCPKnowBook,
+    HCPSignEvidence,
+    HCPActivityGuest,
+    BudgetReason,
+    BudgetAdjustmentRecord,
+    BudgetVersionItem,
+    BudgetVersion,
     ReceiptForecast,
     PaymentSchedule,
     CashPool,
@@ -186,8 +214,11 @@ async def seed_all(force_reload: bool = False) -> None:
             logger.info("Step 15/16: Seeding scenario planning...")
             await seed_scenario(session)
             await session.commit()
+            logger.info("Step 16/17: Seeding operational audit/budget version layer...")
+            await seed_operational(session)
+            await session.commit()
             logger.info("=" * 60)
-            logger.info("Full database seed completed successfully! (16 steps)")
+            logger.info("Full database seed completed successfully! (17 steps)")
             logger.info("=" * 60)
         except Exception as e:
             await session.rollback()

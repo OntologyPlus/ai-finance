@@ -52,3 +52,56 @@ class ComplianceRule(Base):
     violation_action = Column(String(200), comment="违规处理")
     is_active = Column(Integer, default=1, comment="是否启用")
     created_at = Column(DateTime, server_default=func.now())
+
+
+class HCPActivityGuest(Base):
+    """活动参会客户/HCP 现场名单（签到、计次）。"""
+
+    __tablename__ = "hcp_activity_guest"
+
+    guest_id = Column(String(24), primary_key=True)
+    expense_id = Column(String(20), nullable=True, index=True, comment="关联报销单")
+    activity_id = Column(String(64), nullable=True, index=True)
+    hcp_id = Column(String(50), nullable=True, index=True)
+    doctor_name = Column(String(128), nullable=False)
+    hospital_name = Column(String(256), nullable=True)
+    is_hcp = Column(Integer, default=1)
+    is_sign = Column(String(8), default="NO", comment="YES/NO")
+    sign_time = Column(DateTime, nullable=True)
+    sign_addr = Column(String(512), nullable=True)
+    sign_longitude = Column(String(32), nullable=True)
+    sign_latitude = Column(String(32), nullable=True)
+    meet_role = Column(String(128), nullable=True)
+    know_book_count = Column(Integer, default=0)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class HCPSignEvidence(Base):
+    """HCP/差旅类打卡证据。"""
+
+    __tablename__ = "hcp_sign_evidence"
+
+    sign_id = Column(String(24), primary_key=True)
+    expense_id = Column(String(20), nullable=True, index=True)
+    hcp_id = Column(String(50), nullable=True, index=True)
+    guest_id = Column(String(24), nullable=True)
+    sign_time = Column(DateTime, nullable=True)
+    address = Column(String(512), nullable=True)
+    longitude = Column(String(32), nullable=True)
+    latitude = Column(String(32), nullable=True)
+    valid = Column(Integer, default=1)
+    created_at = Column(DateTime, server_default=func.now())
+
+
+class HCPKnowBook(Base):
+    """知情同意书。"""
+
+    __tablename__ = "hcp_know_book"
+
+    book_id = Column(String(24), primary_key=True)
+    expense_id = Column(String(20), nullable=True, index=True)
+    hcp_id = Column(String(50), nullable=True, index=True)
+    guest_id = Column(String(24), nullable=True)
+    file_url = Column(String(2048), nullable=False)
+    seq_no = Column(Integer, default=1)
+    created_at = Column(DateTime, server_default=func.now())

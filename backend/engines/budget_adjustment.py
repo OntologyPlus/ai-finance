@@ -234,6 +234,18 @@ class BudgetAdjustmentEngine:
                     to_item.available_amount = Decimal(str(to_item.available_amount)) + amount_decimal
                     to_item.annual_amount = Decimal(str(to_item.annual_amount)) + amount_decimal
                     await db.flush()
+                    try:
+                        from engines.budget_versioning import budget_versioning_engine
+
+                        await budget_versioning_engine.snapshot(
+                            db,
+                            change_summary=f"调拨执行 {transfer_id}",
+                            created_by=approved_by,
+                            freeze=True,
+                            budget_ids=[from_budget_id, to_budget_id],
+                        )
+                    except Exception as snap_err:
+                        logger.warning(f"Transfer version snapshot skipped: {snap_err}")
 
                     # Publish event
                     from ontology.events import get_event_bus, OntologyEventType
@@ -303,6 +315,12 @@ class BudgetAdjustmentEngine:
         amount: float,
         reason: str,
         db: AsyncSession,
+        formula_text: Optional[str] = None,
+        parameter_json: Optional[Dict[str, Any]] = None,
+        source_json: Optional[Any] = None,
+        module_code: Optional[str] = None,
+        risk_text: Optional[str] = None,
+        created_by: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Request a budget adjustment (increase/decrease).
 
@@ -354,6 +372,52 @@ class BudgetAdjustmentEngine:
 
             adjustment_id = f"AD-{uuid.uuid4().hex[:8].upper()}"
 
+            before = {
+                "budget_id": budget_id,
+                "annual_amount": float(current_annual),
+                "available_amount": float(budget_item.available_amount or 0),
+            }
+            after = {
+                "budget_id": budget_id,
+                "annual_amount": float(new_annual),
+                "available_amount": float(
+                    Decimal(str(budget_item.available_amount or 0))
+                    + (adjustment_amount if adjustment_type == "increase" else -adjustment_amount)
+                ),
+            }
+
+            persisted = None
+            try:
+                from engines.budget_versioning import budget_versioning_engine
+
+                persisted = await budget_versioning_engine.record_adjustment(
+                    db,
+                    target_id=budget_id,
+                    before=before,
+                    after=after,
+                    reason=reason,
+                    adjustment_type="AMOUNT",
+                    amount_direction=adjustment_type,
+                    related_budget_id=budget_id,
+                    created_by=None,
+                    status="待审批",
+                )
+                adjustment_id = persisted.adjustment_id
+                if formula_text or source_json:
+                    await budget_versioning_engine.add_reason(
+                        db,
+                        target_id=budget_id,
+                        reason_text=reason,
+                        formula_text=formula_text,
+                        parameter_json=parameter_json if isinstance(parameter_json, dict) else None,
+                        source_json=source_json,
+                        module_code=module_code or "AMOUNT",
+                        risk_text=risk_text,
+                        created_by=created_by,
+                    )
+            except Exception as ver_err:
+                logger.warning(f"Budget adjustment persist failed (non-blocking): {ver_err}")
+
             adjustment_request = {
                 "adjustment_id": adjustment_id,
                 "budget_id": budget_id,
@@ -362,6 +426,8 @@ class BudgetAdjustmentEngine:
                 "reason": reason,
                 "current_annual": float(current_annual),
                 "new_annual": float(new_annual),
+                "before": before,
+                "after": after,
                 "approval_required": approval_level,
                 "status": "待审批",
                 "created_at": datetime.now().isoformat(),

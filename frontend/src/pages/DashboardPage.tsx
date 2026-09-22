@@ -59,6 +59,26 @@ function formatAmount(n: number | undefined | null): string {
   return `¥ ${n.toLocaleString()}`;
 }
 
+type DecisionBriefItem = {
+  id: string;
+  rank: number;
+  source: string;
+  severity: 'red' | 'yellow' | 'orange';
+  title: string;
+  money_label: string;
+  money_value: number;
+  action: string;
+  why: string;
+  href: string;
+  secondary_href?: string;
+};
+
+const BRIEF_TONE: Record<DecisionBriefItem['severity'], string> = {
+  red: 'bg-alert-100 text-alert-700',
+  orange: 'bg-warning-100 text-warning-700',
+  yellow: 'bg-brand-100 text-brand-700',
+};
+
 // ─── Main Component ──────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -78,6 +98,7 @@ export default function DashboardPage() {
   const [quadrantData, setQuadrantData] = useState<any[]>([]);
   const [waterfallData, setWaterfallData] = useState<any[]>([]);
   const [proactiveInsights, setProactiveInsights] = useState<any[]>([]);
+  const [decisionBrief, setDecisionBrief] = useState<DecisionBriefItem[]>([]);
   const [dashboardMetrics, setDashboardMetrics] = useState<{
     recentAlertsCount: number;
     budgetExecutionRate: number;
@@ -102,6 +123,7 @@ export default function DashboardPage() {
     Promise.allSettled([
       dashboardApi.getOverview().then(res => setSummary(res.data)),
       expenseApi.getReports({ status: 'pending_approval', page: 1, page_size: 10 }).then(res => setPendingApprovals(res.data || [])),
+      dashboardApi.getDecisionBrief().then(res => setDecisionBrief(res.data?.items || [])),
     ]).then(() => {
       generateInsights();
     }).catch((error: any) => {
@@ -403,7 +425,8 @@ export default function DashboardPage() {
   }, [insights, proactiveInsights, analysisInsights]);
 
   const criticalCount = unifiedInsights.filter((i) => i.priority === 'critical').length;
-  const greeting = getPersonalizedGreeting(user, criticalCount);
+  const briefCount = decisionBrief.length;
+  const greeting = getPersonalizedGreeting(user, Math.max(criticalCount, briefCount));
   const { setAIContext } = useAppStore();
 
   // 序列化关键 ID 用于 effect 依赖（避免 array 引用变化导致无限循环）
@@ -448,9 +471,11 @@ export default function DashboardPage() {
             {greeting.icon} {greeting.text}
           </h1>
           <p className="text-xs text-surface-500 mt-1">
-            {criticalCount > 0
-              ? `以下 ${criticalCount} 件需立即处理，其它一切正常。`
-              : '所有财经数据已检查，未发现异常。'}
+            {briefCount > 0
+              ? `本周 ${briefCount} 笔需要拍板，金额与动作已列在下方。`
+              : criticalCount > 0
+                ? `以下 ${criticalCount} 件需立即处理，其它一切正常。`
+                : '所有财经数据已检查，未发现异常。'}
           </p>
         </div>
         <button
@@ -460,6 +485,57 @@ export default function DashboardPage() {
           <RefreshCw size={12} />
           刷新
         </button>
+      </div>
+
+      {/* ── 1.5 本周拍板：金额 · 动作 · 一句理由 ── */}
+      <div className="rounded-xl border border-finance-200 bg-white overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-finance-100 bg-finance-50/60">
+          <h2 className="section-title">
+            <Zap size={14} className="text-finance-600" />
+            本周拍板
+          </h2>
+          <span className="text-[10px] text-surface-400">
+            {briefCount > 0 ? `${briefCount} 笔 · 点进去批` : '暂无待拍板事项'}
+          </span>
+        </div>
+        {decisionBrief.length === 0 ? (
+          <p className="px-4 py-6 text-xs text-surface-400 text-center">诊断灯、待审报销与红橙预警均无需要当场拍板的事项。</p>
+        ) : (
+          <div className="divide-y divide-finance-50">
+            {decisionBrief.map((item) => (
+              <div key={item.id} className="flex items-start gap-3 px-4 py-3">
+                <span className={`mt-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded ${BRIEF_TONE[item.severity] || BRIEF_TONE.yellow}`}>
+                  {item.rank}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-semibold text-finance-800">{item.title}</p>
+                    <span className="text-sm font-display font-bold text-finance-700">{item.money_label}</span>
+                  </div>
+                  <p className="text-[11px] text-surface-500 mt-0.5 line-clamp-1">{item.why}</p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => navigate(item.href)}
+                    className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-finance-600 text-white hover:bg-finance-700"
+                  >
+                    {item.action}
+                  </button>
+                  {item.secondary_href ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate(item.secondary_href!)}
+                      className="px-2 py-1 rounded-md text-[11px] text-finance-600 hover:bg-finance-50"
+                    >
+                      影响面
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* ── 2. L1 决策层：4 KPI 卡（无渐变） ── */}
@@ -529,7 +605,7 @@ export default function DashboardPage() {
           </h2>
           <RoleSwitcher currentRole={currentRole} onChange={handleRoleChange} />
         </div>
-        {currentRole === 'cfo' && <CFODashboard />}
+        {currentRole === 'cfo' && <CFODashboard period={new Date().toISOString().slice(0, 7)} />}
         {currentRole === 'center_lead' && <CenterLeadDashboard />}
         {currentRole === 'product_manager' && <ProductManagerDashboard />}
       </div>

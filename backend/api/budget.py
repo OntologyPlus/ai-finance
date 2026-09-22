@@ -810,7 +810,17 @@ async def request_budget_adjustment(
             if not all([budget_id, amount]):
                 raise HTTPException(status_code=400, detail="budget_id and amount are required")
             result = await adjustment_engine.request_adjustment(
-                budget_id, adjustment_type, float(amount), reason, db
+                budget_id,
+                adjustment_type,
+                float(amount),
+                reason,
+                db,
+                formula_text=body.get("formula_text"),
+                parameter_json=body.get("parameter_json"),
+                source_json=body.get("source_json"),
+                module_code=body.get("module_code"),
+                risk_text=body.get("risk_text"),
+                created_by=body.get("created_by"),
             )
         else:
             raise HTTPException(status_code=400, detail="adjustment_type must be 'transfer', 'increase', or 'decrease'")

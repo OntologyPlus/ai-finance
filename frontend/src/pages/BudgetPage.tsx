@@ -38,7 +38,7 @@ import RootCauseDrillDown, { type RootCauseDrill } from '../components/budget/Ro
 import ProactiveSuggestionPanel, { type SuggestionsResponse } from '../components/budget/ProactiveSuggestionPanel';
 import BusinessLinkagePanel, { type BusinessLinkage } from '../components/budget/BusinessLinkagePanel';
 
-const TABS = ['预算项目', '科目体系', 'A/B分类', '象限视图', '调拨管理', '健康度', '调拨模拟', '预算认知', 'B→A预判'] as const;
+const TABS = ['预算项目', '科目体系', 'A/B分类', '象限视图', '调拨管理', '版本与调整', '健康度', '调拨模拟', '预算认知', 'B→A预判'] as const;
 
 const CONTROL_TAG_MAP: Record<string, { label: string; cls: string }> = {
   strong: { label: '强管控', cls: 'badge-red' },
@@ -178,6 +178,9 @@ export default function BudgetPage() {
     if (activeTab === 'B→A预判' && !b2aDashboard && !b2aDashboardLoading) {
       fetchB2aDashboard();
     }
+    if (activeTab === '版本与调整') {
+      fetchVersions();
+    }
   }, [activeTab, cognitiveSubTab]);
 
   // v12.1: 阶段 2 — B→A 智能预判数据加载
@@ -186,6 +189,28 @@ export default function BudgetPage() {
   const [b2aPredictResult, setB2aPredictResult] = useState<any>(null);
   const [b2aPredictLoading, setB2aPredictLoading] = useState(false);
   const [b2aSelectedBudgetId, setB2aSelectedBudgetId] = useState<string>('');
+  const [budgetVersions, setBudgetVersions] = useState<any[]>([]);
+  const [budgetAdjustments, setBudgetAdjustments] = useState<any[]>([]);
+  const [budgetReasons, setBudgetReasons] = useState<any[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+
+  const fetchVersions = async () => {
+    setVersionsLoading(true);
+    try {
+      const [v, a, r] = await Promise.all([
+        budgetApi.getVersions(2026),
+        budgetApi.getAdjustments(),
+        budgetApi.getReasons(),
+      ]);
+      setBudgetVersions(Array.isArray(v.data) ? v.data : []);
+      setBudgetAdjustments(Array.isArray(a.data) ? a.data : []);
+      setBudgetReasons(Array.isArray(r.data) ? r.data : []);
+    } catch (e: any) {
+      addToast({ type: 'error', title: '加载版本失败', message: e.message });
+    } finally {
+      setVersionsLoading(false);
+    }
+  };
 
   const fetchB2aDashboard = async () => {
     setB2aDashboardLoading(true);
@@ -1766,6 +1791,90 @@ export default function BudgetPage() {
                   <div className="glass-card-static p-10 text-center text-surface-400">
                     <Brain size={40} className="mx-auto mb-3 opacity-30" />
                     <p className="text-sm">暂无 B 类预算数据</p>
+                  </div>
+                )}
+              </motion.div>
+            )}
+
+            {activeTab === '版本与调整' && (
+              <motion.div
+                key="budget-versions"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+              >
+                <div className="flex items-center gap-2 mb-4">
+                  <Layers size={14} className="text-finance-600" />
+                  <span className="text-sm font-medium text-finance-800">草稿 / 冻结版本与调整 diff</span>
+                  <button
+                    className="btn-primary text-xs px-3 py-1.5 ml-auto"
+                    onClick={async () => {
+                      if (!window.confirm('将冻结当前全部预算为新版本，并取代当前冻结版。继续？')) return;
+                      await budgetApi.snapshotVersion({ budget_year: 2026, change_summary: '手工快照', freeze: true });
+                      fetchVersions();
+                    }}
+                  >
+                    冻结当前快照
+                  </button>
+                </div>
+                {versionsLoading ? (
+                  <p className="text-xs text-surface-400">加载中...</p>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="overflow-x-auto">
+                      <p className="text-xs font-semibold mb-2">版本</p>
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-surface-200/60 text-left text-xs text-surface-500">
+                            <th className="py-2">版本</th>
+                            <th>状态</th>
+                            <th>摘要</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {budgetVersions.map((row: any) => (
+                            <tr key={row.version_id} className="border-b border-surface-100">
+                              <td className="py-2 font-mono text-xs">{row.version_no}</td>
+                              <td className="text-xs">{row.status}{row.is_current ? ' · 当前' : ''}</td>
+                              <td className="text-xs text-surface-500">{row.change_summary || '—'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold mb-2">调整 diff</p>
+                      {budgetAdjustments.map((row: any) => (
+                        <div key={row.adjustment_id} className="p-3 rounded-xl border border-surface-200/60 bg-white mb-2 text-xs">
+                          <div className="flex justify-between">
+                            <span className="font-mono">{row.adjustment_id}</span>
+                            <span>{row.status}</span>
+                          </div>
+                          <p className="mt-1 text-surface-600">{row.reason}</p>
+                          {row.status === '待审批' && (
+                            <button
+                              className="mt-2 text-[11px] text-finance-700 hover:underline"
+                              onClick={async () => {
+                                if (!window.confirm('将按 diff 改写预算金额并冻结新版本。继续？')) return;
+                                await budgetApi.applyAdjustment(row.adjustment_id);
+                                fetchVersions();
+                              }}
+                            >
+                              执行并冻结新版本
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                      <p className="text-xs font-semibold mt-3 mb-2">测算理由</p>
+                      {budgetReasons.map((row: any) => (
+                        <div key={row.reason_id} className="p-3 rounded-xl border border-surface-200/60 bg-white mb-2 text-xs">
+                          <p className="font-mono text-finance-700">{row.module_code} · {row.target_id}</p>
+                          <p className="mt-1">{row.formula_text}</p>
+                          <p className="text-surface-500 mt-1">{row.reason_text}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </motion.div>

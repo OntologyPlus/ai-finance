@@ -44,26 +44,13 @@ class TestRoleDashboardBuildCFO:
         engine = RoleDashboardEngine()
         db = make_mock_db()
 
-        # 设置 mock：3 次 execute（budget, alerts, strategic）
-        # 第一次：预算项
-        budget_mock = MagicMock()
-        budget_scalars = MagicMock()
-        budget_scalars.all = MagicMock(return_value=[])
-        budget_mock.scalars = MagicMock(return_value=budget_scalars)
-
-        # 第二次：预警
-        alert_mock = MagicMock()
-        alert_scalars = MagicMock()
-        alert_scalars.all = MagicMock(return_value=[])
-        alert_mock.scalars = MagicMock(return_value=alert_scalars)
-
-        # 第三次：战略举措
-        si_mock = MagicMock()
-        si_scalars = MagicMock()
-        si_scalars.all = MagicMock(return_value=[])
-        si_mock.scalars = MagicMock(return_value=si_scalars)
-
-        db.execute = AsyncMock(side_effect=[budget_mock, alert_mock, si_mock])
+        empty = MagicMock()
+        empty.scalars.return_value.all.return_value = []
+        empty.scalars.return_value.first.return_value = None
+        empty.scalar_one_or_none.return_value = None
+        empty.scalar.return_value = 0
+        db.execute = AsyncMock(return_value=empty)
+        db.get = AsyncMock(return_value=None)
 
         result = await engine.build(role="cfo", db=db, period="2024-09")
 
@@ -72,10 +59,13 @@ class TestRoleDashboardBuildCFO:
         assert "kpis" in result
         assert "diagnosis_cards" in result
         assert "frameworks" in result
+        assert "decision_brief" in result
         # 9 卡都有
         assert len(result["diagnosis_cards"]) == 9
         # 4 框架都有
         assert len(result["frameworks"]) == 4
+        assert isinstance(result["decision_brief"].get("items"), list)
+        assert len(result["decision_brief"]["items"]) <= 3
 
 
 class TestRoleDashboardBuildCenterLead:

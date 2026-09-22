@@ -155,5 +155,6 @@ async def init_db():
     from models import impact_assessment, zero_based_budget, approval_config, archive
     from models import business_review, contract, milestone, budget_occupation
     from models import pending_item, report_signoff, trace_feedback, expense_effect, memory, decision
+    from models import expense_ops, budget_version, rule_catalog
     await db_manager.init_all()
     await db_manager.create_tables()

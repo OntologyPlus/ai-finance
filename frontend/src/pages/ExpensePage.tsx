@@ -30,7 +30,7 @@ import Pagination from '../components/Pagination';
 import RuleBadge from '../components/common/RuleBadge';
 import { AIViewPanel, ViewToggle } from '../components/ai';
 
-const TABS = ['报销单列表', '发票查重', '效果追踪', '异常检测', '预算消耗预测', 'AI智能预审'] as const;
+const TABS = ['报销单列表', '审单证据', '发票查重', '效果追踪', '异常检测', '预算消耗预测', 'AI智能预审'] as const;
 
 const STATUS_MAP: Record<string, { label: string; cls: string }> = {
   draft: { label: '编制中', cls: 'badge-blue' },
@@ -81,6 +81,7 @@ export default function ExpensePage() {
   const [effectTrackings, setEffectTrackings] = useState<any[]>([]);
   const [approvalStatus, setApprovalStatus] = useState<any>(null);
   const [detailTab, setDetailTab] = useState<'info' | 'effect'>('info');
+  const [operationalPack, setOperationalPack] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'ai' | 'data'>('ai');
   // v9.0: v8.0 引擎接入
   const [anomalies, setAnomalies] = useState<any[]>([]);
@@ -137,6 +138,18 @@ export default function ExpensePage() {
     if (activeTab === '异常检测' && riskScores.length === 0) loadRiskScores();
     if (activeTab === '预算消耗预测' && !burnPrediction) loadBurnPrediction();
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== '审单证据') return;
+    if (selectedExpense?.expense_id) {
+      expenseApi.getOperational(selectedExpense.expense_id).then(res => {
+        setOperationalPack(res.data || null);
+      }).catch(() => setOperationalPack(null));
+      return;
+    }
+    const exp = expenses.find((item: any) => item.expense_id === 'EXP-001') || expenses[0];
+    if (exp) setSelectedExpense(exp);
+  }, [activeTab, selectedExpense?.expense_id, expenses.length]);
 
   // v12.1: 阶段 3 — AI 智能预审
   const [aiReviewForm, setAiReviewForm] = useState({
@@ -493,6 +506,9 @@ export default function ExpensePage() {
                             onClick={() => {
                               setSelectedExpense(exp);
                               setDetailTab('info');
+                              expenseApi.getOperational(exp.expense_id).then(res => {
+                                setOperationalPack(res.data || null);
+                              }).catch(() => setOperationalPack(null));
                               // Fetch approval status
                               approvalApi.getChain(exp.expense_id).then(res => {
                                 const records = Array.isArray(res.data) ? res.data : [];
@@ -1453,6 +1469,92 @@ export default function ExpensePage() {
                     </div>
                   </div>
                 </div>
+              </motion.div>
+            )}
+
+            {activeTab === '审单证据' && (
+              <motion.div
+                key="ops-pack"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.15 }}
+              >
+                {!selectedExpense ? (
+                  <div className="text-center py-10 text-surface-300">
+                    <FileCheck size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="text-sm">打开本页会自动加载演示单，也可回到列表点选其他报销</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm font-medium text-finance-700 font-mono">{selectedExpense.expense_id}</p>
+                    {operationalPack?.settlement && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {[
+                          ['申请', operationalPack.settlement.apply_money],
+                          ['预审', operationalPack.settlement.pre_pass_money],
+                          ['实核', operationalPack.settlement.real_money],
+                          ['应付', operationalPack.settlement.pay_money],
+                        ].map(([label, value]) => (
+                          <div key={String(label)} className="p-3 rounded-xl border border-surface-200/60 bg-white">
+                            <p className="text-[10px] text-surface-400">{label}</p>
+                            <p className="text-sm font-mono font-semibold text-finance-800">{formatAmount(Number(value || 0))}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-surface-200/60 text-left text-xs text-surface-500">
+                            <th className="py-2">来源</th>
+                            <th>科目</th>
+                            <th>申请</th>
+                            <th>预审</th>
+                            <th>实核</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(operationalPack?.lines || []).map((line: any) => (
+                            <tr key={line.line_id} className="border-b border-surface-100">
+                              <td className="py-2">
+                                <span className="text-xs">{line.source_bill_type}</span>
+                                <span className="block text-[10px] text-surface-400 font-mono">{line.source_code || '—'}</span>
+                              </td>
+                              <td className="text-xs font-mono">{line.l3_code || line.l1_code}</td>
+                              <td className="font-mono">{formatAmount(Number(line.apply_money || 0))}</td>
+                              <td className="font-mono">{formatAmount(Number(line.pre_pass_money || 0))}</td>
+                              <td className="font-mono">{formatAmount(Number(line.real_money || 0))}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {(!operationalPack?.lines || operationalPack.lines.length === 0) && (
+                        <p className="text-xs text-surface-400 py-4">暂无科目行。提交新报销时会自动生成一行。</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-surface-600 mb-2">三流不一致</p>
+                      {(operationalPack?.three_flow || []).length === 0 ? (
+                        <p className="text-xs text-surface-400">无待确认主体差</p>
+                      ) : (
+                        (operationalPack.three_flow || []).map((row: any) => (
+                          <div key={row.mismatch_id} className="p-3 rounded-xl border border-amber-200 bg-amber-50/40 text-xs mb-2">
+                            <span className="font-mono mr-2">{row.status}</span>
+                            销方 {row.seller_name || '—'} / 收款 {row.payee_name || '—'} / 商户 {row.merchant_name || '—'}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-surface-600 mb-2">OCR / HCP</p>
+                      <p className="text-xs text-surface-500">
+                        OCR 任务 {(operationalPack?.ocr_runs || []).length} · 图片 {(operationalPack?.ocr_images || []).length} ·
+                        参会 {(operationalPack?.hcp_guests || []).length} · 签到 {(operationalPack?.hcp_signs || []).length}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>

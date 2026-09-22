@@ -45,6 +45,19 @@ async def get_role_dashboard(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/dashboard/decision-brief", response_model=APIResponse)
+async def get_decision_brief(
+    period: Optional[str] = Query(None, description="期间 YYYY-MM"),
+    db: AsyncSession = Depends(get_db),
+):
+    """本周拍板：驾驶舱顶部 3 条（金额 · 动作 · 一句理由），点进去批/看影响。"""
+    try:
+        data = await role_engine.build_decision_brief(db, period=period)
+        return APIResponse(success=True, data=data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/dashboard/role-supported", response_model=APIResponse)
 async def list_supported_roles():
     """v8.0 列出支持的角色"""

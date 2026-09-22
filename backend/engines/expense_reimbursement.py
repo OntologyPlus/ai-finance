@@ -285,6 +285,7 @@ class ExpenseReimbursementEngine:
             )
             db.add(expense_report)
 
+            invoice_records = []
             for inv in invoices:
                 invoice_record = InvoiceRecord(
                     invoice_id=f"INV-{uuid.uuid4().hex[:8].upper()}",
@@ -299,11 +300,25 @@ class ExpenseReimbursementEngine:
                     is_duplicate=False,
                 )
                 db.add(invoice_record)
+                invoice_records.append(invoice_record)
+            await db.flush()
+
+            ops_pack = {}
+            try:
+                from engines.expense_ops import expense_ops_engine
+
+                ops_pack = await expense_ops_engine.persist_pack(
+                    expense_report, expense_data, db, invoices=invoice_records
+                )
+            except Exception as ops_err:
+                logger.warning(f"Operational expense pack failed (non-blocking): {ops_err}")
 
             steps.append({
                 "step": 6,
                 "result": "passed",
                 "detail": f"Expense report created: {expense_id}, status={expense_report.status}",
+                "lines": len(ops_pack.get("lines") or []),
+                "three_flow_pending": (ops_pack.get("three_flow") or {}).get("pending_count", 0),
             })
 
             # Step 7: Strategic alignment evaluation
@@ -389,7 +404,12 @@ class ExpenseReimbursementEngine:
                 entity_ids=[expense_id, budget_id],
                 applied_rule_ids=["HR-001", "HR-002"],
                 hook_id="engine.submit_expense",
-                metadata={"budget_id": budget_id, "status": expense_report.status},
+                metadata={
+                    "budget_id": budget_id,
+                    "status": expense_report.status,
+                    "line_count": len(ops_pack.get("lines") or []),
+                    "three_flow_pending": (ops_pack.get("three_flow") or {}).get("pending_count", 0),
+                },
                 db=db,
             )
             logger.info(f"Expense report {expense_id} submitted successfully")

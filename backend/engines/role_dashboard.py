@@ -7,7 +7,9 @@
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 from sqlalchemy import select, func
@@ -19,6 +21,62 @@ from models.analysis import ExecutionRate
 from models.expense import ExpenseReport
 from models.approval import ApprovalRecord
 from models.strategic import StrategicInitiative
+
+# DiagnosisEngine card_type → CFO 九宫格 key / 展示名
+_CARD_UI: Dict[str, Tuple[str, str]] = {
+    "revenue_health": ("revenue_health", "营收健康"),
+    "gross_margin": ("gross_margin", "毛利质量"),
+    "expense_pacing": ("expense_pacing", "费用节奏"),
+    "product_mix": ("product_mix", "产品组合"),
+    "channel_split": ("channel_split", "渠道分布"),
+    "profit_authenticity": ("profit_authenticity", "利润真实性"),
+    "commercialization_efficiency": ("commercialization", "商业化效率"),
+    "policy_risk": ("policy_risk", "政策风险"),
+    "cashflow_quality": ("cashflow_quality", "现金流质量"),
+}
+
+_STUB_DIAGNOSIS_CARDS: Dict[str, Dict[str, Any]] = {
+    ui_key: {"status": "green", "value": 0, "label": label, "reason": "", "card_type": card_type}
+    for card_type, (ui_key, label) in _CARD_UI.items()
+}
+
+_DIAG_CACHE: Dict[str, Tuple[float, Dict[str, Dict[str, Any]]]] = {}
+_DIAG_TTL_SEC = 90.0
+
+
+def _default_period(period: Optional[str]) -> str:
+    if period and len(period) >= 7:
+        return period[:7]
+    return datetime.now().strftime("%Y-%m")
+
+
+def _fmt_cny(amount: float) -> str:
+    n = abs(float(amount or 0))
+    if n >= 10000:
+        return f"¥{n / 10000:.1f}万"
+    return f"¥{n:,.0f}"
+
+
+def _pick_metric_value(metrics: Any) -> float:
+    if not isinstance(metrics, dict):
+        return 0.0
+    for key in (
+        "ytd_progress_pct",
+        "progress_deviation_pp",
+        "budget_achievement_pct",
+        "budget_gap_pp",
+        "promo_progress",
+        "roi",
+        "execution_rate",
+        "non_operating_pct",
+    ):
+        val = metrics.get(key)
+        if isinstance(val, (int, float)) and float(val) != 0:
+            return round(float(val), 1)
+    for val in metrics.values():
+        if isinstance(val, (int, float)) and float(val) != 0:
+            return round(float(val), 1)
+    return 0.0
 
 
 # ─── 角色定义 ─────────────────────────────────────
@@ -94,10 +152,17 @@ class RoleDashboardEngine:
                 strategic_summary["by_intent"].get(intent, 0) + 1
             )
 
+        period_key = _default_period(period)
+        diagnosis_cards = await self._live_diagnosis_cards(db, period_key)
+        decision_brief = await self.build_decision_brief(
+            db, period=period_key, diagnosis_cards=diagnosis_cards
+        )
+
         return {
             "role": "cfo",
             "title": "CFO 经营全景",
             "subtitle": "战略 · 预算 · 风险 · 现金流",
+            "period": period_key,
             "kpis": {
                 "total_budget": budget_summary["total_budget"],
                 "total_used": budget_summary["total_used"],
@@ -106,18 +171,8 @@ class RoleDashboardEngine:
                 "active_strategies": strategic_summary["active_count"],
             },
             "budget_summary": budget_summary,
-            "diagnosis_cards": {
-                # 9 卡：每个卡的健康状态灯（绿/黄/红）
-                "revenue_health": {"status": "green", "value": 0, "label": "营收健康"},
-                "gross_margin": {"status": "green", "value": 0, "label": "毛利质量"},
-                "expense_pacing": {"status": "yellow", "value": 0, "label": "费用节奏"},
-                "product_mix": {"status": "green", "value": 0, "label": "产品组合"},
-                "channel_split": {"status": "green", "value": 0, "label": "渠道分布"},
-                "profit_authenticity": {"status": "green", "value": 0, "label": "利润真实性"},
-                "commercialization": {"status": "yellow", "value": 0, "label": "商业化效率"},
-                "policy_risk": {"status": "green", "value": 0, "label": "政策风险"},
-                "cashflow_quality": {"status": "green", "value": 0, "label": "现金流质量"},
-            },
+            "diagnosis_cards": diagnosis_cards,
+            "decision_brief": decision_brief,
             "frameworks": framework_overview,
             "strategic_summary": strategic_summary,
             "top_alerts": alerts,
@@ -457,4 +512,247 @@ class RoleDashboardEngine:
                 f"研发类预算: {has_rnd}",
                 f"高优先级预警: {len(high_alerts)}",
             ],
+        }
+
+    # ═══════════════════════════════════════════════════════════════
+    # 本周拍板 + 活诊断九卡（失败回退 stub，不拖垮驾驶舱）
+    # ═══════════════════════════════════════════════════════════════
+
+    async def _live_diagnosis_cards(
+        self, db: AsyncSession, period: str
+    ) -> Dict[str, Dict[str, Any]]:
+        """跑 9 张 diagnose_*（无 LLM），映射到 CFO 九宫格。90s 缓存。"""
+        cached = _DIAG_CACHE.get(period)
+        now = time.monotonic()
+        if cached and cached[0] > now:
+            return cached[1]
+
+        cards = {k: dict(v) for k, v in _STUB_DIAGNOSIS_CARDS.items()}
+        try:
+            from engines.business_diagnosis import NINE_CARDS, DiagnosisEngine
+
+            engine = DiagnosisEngine()
+            for meta in NINE_CARDS:
+                card_type = meta["type"]
+                ui_key, label = _CARD_UI.get(card_type, (card_type, meta["name"]))
+                method = getattr(engine, f"diagnose_{card_type}", None)
+                if method is None:
+                    continue
+                try:
+                    result = await method(period, db)
+                except Exception as exc:
+                    logger.warning(f"[role_dashboard] diagnose_{card_type} failed: {exc}")
+                    result = {}
+                light = result.get("signal_light") or "green"
+                if light not in ("red", "yellow", "green"):
+                    light = "green"
+                metrics = result.get("metrics_json") or {}
+                reason = (result.get("light_reason") or "")[:160]
+                nums = [
+                    float(v)
+                    for v in (metrics.values() if isinstance(metrics, dict) else [])
+                    if isinstance(v, (int, float))
+                ]
+                if metrics.get("error") or (
+                    light != "green" and nums and all(n == 0 for n in nums)
+                ):
+                    light = "green"
+                    reason = "本期尚无足够实际数，信号灯暂不点亮"
+                cards[ui_key] = {
+                    "status": light,
+                    "value": _pick_metric_value(metrics),
+                    "label": label,
+                    "reason": reason,
+                    "card_type": card_type,
+                }
+        except Exception as exc:
+            logger.warning(f"[role_dashboard] live diagnosis unavailable: {exc}")
+
+        _DIAG_CACHE[period] = (now + _DIAG_TTL_SEC, cards)
+        return cards
+
+    async def build_decision_brief(
+        self,
+        db: AsyncSession,
+        period: Optional[str] = None,
+        diagnosis_cards: Optional[Dict[str, Dict[str, Any]]] = None,
+        limit: int = 3,
+    ) -> Dict[str, Any]:
+        """本周拍板：红黄诊断 / 大额待审报销 / 红橙预警 / B 类超进度，按金额与严重度取 Top 3。"""
+        period_key = _default_period(period)
+        ranked: List[Dict[str, Any]] = []
+
+        if diagnosis_cards is None:
+            diagnosis_cards = await self._live_diagnosis_cards(db, period_key)
+
+        for key, card in (diagnosis_cards or {}).items():
+            status = card.get("status")
+            if status not in ("red", "yellow"):
+                continue
+            ranked.append({
+                "id": f"card-{key}",
+                "source": "diagnosis",
+                "severity": status,
+                "title": card.get("label") or key,
+                "money_label": card.get("reason") or "诊断灯",
+                "money_value": float(card.get("value") or 0),
+                "action": "打开经营分析看证据",
+                "why": card.get("reason") or "诊断信号灯需复核",
+                "href": "/analysis",
+                "secondary_href": "/impact",
+                "score": 88 if status == "red" else 58,
+            })
+
+        try:
+            alerts = await self._top_alerts(db, limit=20)
+            for alert in alerts:
+                if alert.get("level") not in ("红色", "橙色"):
+                    continue
+                deviation = abs(float(alert.get("deviation_rate") or 0))
+                is_red = alert["level"] == "红色"
+                ranked.append({
+                    "id": f"alert-{alert['alert_id']}",
+                    "source": "alert",
+                    "severity": "red" if is_red else "orange",
+                    "title": f"{alert.get('type') or '预警'} · {alert.get('alert_id')}",
+                    "money_label": f"偏离 {deviation:.1f}%",
+                    "money_value": deviation,
+                    "action": "处理预警并看影响面",
+                    "why": f"{alert['level']} · 状态{alert.get('status')}",
+                    "href": "/alert",
+                    "secondary_href": "/impact",
+                    "score": (92 if is_red else 74) + min(deviation, 20) * 0.2,
+                })
+        except Exception as exc:
+            logger.warning(f"[role_dashboard] brief alerts skipped: {exc}")
+
+        try:
+            pending_statuses = ("待审批", "组织线审批中", "法人线审批中")
+            stmt = (
+                select(ExpenseReport)
+                .where(ExpenseReport.status.in_(pending_statuses))
+                .order_by(ExpenseReport.amount.desc())
+                .limit(5)
+            )
+            result = await db.execute(stmt)
+            for exp in result.scalars().all():
+                amount = float(exp.amount or 0)
+                ranked.append({
+                    "id": f"exp-{exp.expense_id}",
+                    "source": "expense",
+                    "severity": "red" if amount >= 100000 else "yellow",
+                    "title": f"大额报销 {exp.expense_id} 待终审",
+                    "money_label": _fmt_cny(amount),
+                    "money_value": amount,
+                    "action": "看影响面后批 / 驳",
+                    "why": (
+                        f"{exp.control_tag or '未标管控'} · 预算 {exp.budget_id}"
+                        + (f" · {(exp.description or '')[:36]}" if exp.description else "")
+                    ),
+                    "href": "/expense",
+                    "secondary_href": "/impact",
+                    "score": 200.0 + amount / 1000.0,
+                })
+        except Exception as exc:
+            logger.warning(f"[role_dashboard] brief expenses skipped: {exc}")
+
+        try:
+            month_num = int(period_key.split("-")[1])
+            expected = month_num / 12.0
+            stmt = select(BudgetItem).where(
+                BudgetItem.budget_category == "B",
+                BudgetItem.status.in_(["已授予", "执行中"]),
+            )
+            result = await db.execute(stmt)
+            for item in result.scalars().all():
+                annual = float(item.annual_amount or 0)
+                used = float(item.used_amount or 0)
+                if annual <= 0:
+                    continue
+                rate = used / annual
+                if rate < expected + 0.15:
+                    continue
+                ranked.append({
+                    "id": f"b-{item.budget_id}",
+                    "source": "budget",
+                    "severity": "orange",
+                    "title": f"{item.budget_name} · B类节奏偏快",
+                    "money_label": f"执行 {rate:.0%} / 时点 {expected:.0%}",
+                    "money_value": used,
+                    "action": "冻结增量，转里程碑后再放",
+                    "why": "B 类无证据占用，建议看影响面后决定是否 B→A",
+                    "href": "/budget",
+                    "secondary_href": "/impact",
+                    "score": 62.0 + rate * 25.0,
+                })
+        except Exception as exc:
+            logger.warning(f"[role_dashboard] brief B-class skipped: {exc}")
+
+        try:
+            from models.hcp_compliance import HCP
+
+            stmt = (
+                select(HCP)
+                .where(HCP.annual_payment_total > 0)
+                .order_by(HCP.annual_payment_total.desc())
+                .limit(3)
+            )
+            result = await db.execute(stmt)
+            for hcp in result.scalars().all():
+                paid = float(hcp.annual_payment_total or 0)
+                limit_amt = float(hcp.payment_limit or 50000)
+                remaining = max(limit_amt - paid, 0)
+                headroom = remaining / limit_amt if limit_amt else 1
+                if headroom > 0.35:
+                    continue
+                ranked.append({
+                    "id": f"hcp-{hcp.hcp_id}",
+                    "source": "hcp",
+                    "severity": "red" if headroom < 0.1 else "yellow",
+                    "title": f"{hcp.name} · 年度付款将触顶",
+                    "money_label": f"已付 {_fmt_cny(paid)} / 限额 {_fmt_cny(limit_amt)}",
+                    "money_value": paid,
+                    "action": "核对现场证据后再付",
+                    "why": f"剩余 {_fmt_cny(remaining)}，付款前确认签到与知情同意",
+                    "href": "/hcp",
+                    "secondary_href": "/impact",
+                    "score": 70.0 + (1 - headroom) * 20.0,
+                })
+        except Exception as exc:
+            logger.warning(f"[role_dashboard] brief HCP skipped: {exc}")
+
+        try:
+            from models.expense_ops import ThreeFlowMismatch
+
+            stmt = select(func.count()).select_from(ThreeFlowMismatch).where(
+                ThreeFlowMismatch.status == "pending"
+            )
+            pending_count = int((await db.execute(stmt)).scalar() or 0)
+            if pending_count > 0:
+                ranked.append({
+                    "id": "three-flow-pending",
+                    "source": "expense",
+                    "severity": "yellow",
+                    "title": f"{pending_count} 笔三流不一致待确认",
+                    "money_label": f"{pending_count} 张发票",
+                    "money_value": float(pending_count),
+                    "action": "核对销方/收款人/商户",
+                    "why": "销方、收款人、水单商户不一致，过白名单或退单后再付",
+                    "href": "/expense",
+                    "secondary_href": "/impact",
+                    "score": 64.0 + min(pending_count, 10),
+                })
+        except Exception as exc:
+            logger.warning(f"[role_dashboard] brief three-flow skipped: {exc}")
+
+        ranked.sort(key=lambda row: float(row.get("score") or 0), reverse=True)
+        top = ranked[: max(1, min(limit, 3))]
+        for idx, item in enumerate(top, start=1):
+            item["rank"] = idx
+            item.pop("score", None)
+
+        return {
+            "period": period_key,
+            "generated_at": datetime.now().isoformat(timespec="seconds"),
+            "items": top,
         }

@@ -398,6 +398,17 @@ async def emit_decision(
     try:
         if isinstance(outcome, str):
             outcome = DecisionOutcome(outcome)
+        meta = dict(metadata or {})
+        if db is not None:
+            try:
+                from engines.rule_pinning import ensure_active_catalog
+
+                catalog = await ensure_active_catalog(db)
+                meta.setdefault("rule_version_id", catalog.version_id)
+                meta.setdefault("rule_content_sha256", catalog.content_sha256)
+                meta.setdefault("rule_version_no", catalog.version_no)
+            except Exception as pin_exc:
+                logger.warning(f"rule catalog pin skipped: {pin_exc}")
         rec = DecisionRecord(
             category=category,
             scenario=scenario,
@@ -409,9 +420,17 @@ async def emit_decision(
             applied_rule_ids=list(applied_rule_ids or []),
             hook_id=hook_id,
             scene_id=scene_id,
-            metadata=dict(metadata or {}),
+            metadata=meta,
         )
-        return await get_decision_recorder().record(rec, db=db, caused_by=caused_by)
+        recorded = await get_decision_recorder().record(rec, db=db, caused_by=caused_by)
+        if db is not None and recorded is not None:
+            try:
+                from engines.rule_pinning import pin_decision_rules
+
+                await pin_decision_rules(db, recorded.decision_id, list(applied_rule_ids or []))
+            except Exception as pin_exc:
+                logger.warning(f"decision rule pin skipped: {pin_exc}")
+        return recorded
     except Exception as exc:
         logger.warning(f"emit_decision failed (non-blocking): {exc}")
         return None

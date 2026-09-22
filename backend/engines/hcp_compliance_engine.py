@@ -7,7 +7,15 @@ from loguru import logger
 from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.hcp_compliance import HCP, HCPInteraction, HCPPayment, ComplianceRule
+from models.hcp_compliance import (
+    HCP,
+    HCPInteraction,
+    HCPPayment,
+    ComplianceRule,
+    HCPActivityGuest,
+    HCPSignEvidence,
+    HCPKnowBook,
+)
 
 
 class HCPComplianceEngine:
@@ -169,6 +177,21 @@ class HCPComplianceEngine:
         interaction.compliance_status = "合规" if is_compliant else "不合规"
         await db.flush()
 
+        evidence = await self.collect_activity_evidence(interaction.hcp_id, db)
+        if (
+            interaction.interaction_type in ("学术会议", "培训", "访问")
+            and evidence.get("guest_count", 0) > 0
+            and not evidence.get("has_valid_sign")
+        ):
+            violations.append({
+                "rule": "HR-035",
+                "violation": "学术/会议类互动缺少有效签到证据",
+                "action": "补录签到或知情同意书后再付款",
+            })
+            is_compliant = False
+            interaction.compliance_status = "不合规"
+            await db.flush()
+
         return {
             "interaction_id": interaction_id,
             "hcp_id": interaction.hcp_id,
@@ -176,6 +199,7 @@ class HCPComplianceEngine:
             "compliance_status": interaction.compliance_status,
             "is_compliant": is_compliant,
             "violations": violations,
+            "evidence": evidence,
             "message": f"互动{'合规' if is_compliant else '不合规'}，发现{len(violations)}项违规",
         }
 
@@ -220,17 +244,49 @@ class HCPComplianceEngine:
         projected_total = current_total + payment_amount
         within_limit = projected_total <= payment_limit
 
+        evidence = await self.collect_activity_evidence(hcp_id, db)
+        can_pay = within_limit
+        reason = "" if within_limit else f"付款后年度总额{projected_total}将超过限额{payment_limit}（HR-027）"
+        if not evidence.get("has_valid_sign") and evidence.get("guest_count", 0) > 0:
+            can_pay = False
+            reason = (reason + "；" if reason else "") + "现场签到证据不足（HR-035）"
+
         return {
             "hcp_id": hcp_id,
             "name": hcp.name,
-            "can_pay": within_limit,
+            "can_pay": can_pay,
             "current_annual_total": current_total,
             "payment_amount": payment_amount,
             "projected_total": projected_total,
             "payment_limit": payment_limit,
             "remaining_limit": max(0, payment_limit - current_total),
             "exceed_amount": max(0, projected_total - payment_limit),
-            "reason": "" if within_limit else f"付款后年度总额{projected_total}将超过限额{payment_limit}（HR-027）",
+            "evidence": evidence,
+            "reason": reason,
+        }
+
+    async def collect_activity_evidence(self, hcp_id: str, db: AsyncSession) -> Dict[str, Any]:
+        guests = (
+            await db.execute(select(HCPActivityGuest).where(HCPActivityGuest.hcp_id == hcp_id))
+        ).scalars().all()
+        signs = (
+            await db.execute(
+                select(HCPSignEvidence).where(
+                    HCPSignEvidence.hcp_id == hcp_id,
+                    HCPSignEvidence.valid == 1,
+                )
+            )
+        ).scalars().all()
+        books = (
+            await db.execute(select(HCPKnowBook).where(HCPKnowBook.hcp_id == hcp_id))
+        ).scalars().all()
+        signed_guests = [g for g in guests if (g.is_sign or "").upper() == "YES"]
+        return {
+            "guest_count": len(guests),
+            "signed_guest_count": len(signed_guests),
+            "sign_count": len(signs),
+            "know_book_count": len(books),
+            "has_valid_sign": len(signs) > 0 or len(signed_guests) > 0,
         }
 
     async def analyze_aggregate_risk(

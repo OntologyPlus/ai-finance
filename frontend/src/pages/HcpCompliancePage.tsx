@@ -18,7 +18,7 @@ import { clsx } from 'clsx';
 import { useAppStore } from '../store';
 import IndustryBenchmark, { RiskAlertPanel } from '../components/hcp/HcpBenchmarkAndRisk';
 
-const TABS = ['HCP验证', '互动合规', '付款限额', '行业对标', '风险预警'] as const;
+const TABS = ['HCP验证', '互动合规', '付款限额', '现场证据', '行业对标', '风险预警'] as const;
 
 // Inline API helpers
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -73,6 +73,9 @@ export default function HcpCompliancePage() {
   const [riskPeriod, setRiskPeriod] = useState('');
   const [riskResult, setRiskResult] = useState<any>(null);
   const [riskLoading, setRiskLoading] = useState(false);
+  const [evidenceHcpId, setEvidenceHcpId] = useState('HCP-001');
+  const [evidenceResult, setEvidenceResult] = useState<any>(null);
+  const [evidenceLoading, setEvidenceLoading] = useState(false);
 
   const handleVerify = async () => {
     if (!hcpId.trim()) {
@@ -502,6 +505,93 @@ export default function HcpCompliancePage() {
                           <span className="text-sm text-alert-700 font-medium">警告：付款金额将超出年度限额！</span>
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === '现场证据' && (
+              <motion.div
+                key="evidence"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="space-y-4"
+              >
+                <div className="glass-card p-6 space-y-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-finance-800">HCP 现场证据</h3>
+                    <p className="text-sm text-surface-400 mt-1">
+                      HR-035 签到、参会名单与知情书（生产审单中的 activity/sign 证据）
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={evidenceHcpId}
+                      onChange={e => setEvidenceHcpId(e.target.value)}
+                      className="flex-1 px-3 py-2 rounded-lg border border-surface-200"
+                      placeholder="HCP ID"
+                    />
+                    <button
+                      disabled={evidenceLoading}
+                      onClick={async () => {
+                        setEvidenceLoading(true);
+                        try {
+                          const res = await apiRequest<any>(`/api/hcp/${encodeURIComponent(evidenceHcpId)}/evidence`);
+                          setEvidenceResult(res.data || res);
+                        } catch (err: any) {
+                          setEvidenceResult({ error: err.message });
+                        } finally {
+                          setEvidenceLoading(false);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-lg bg-finance-700 text-white"
+                    >
+                      {evidenceLoading ? '查询中…' : '查询'}
+                    </button>
+                  </div>
+                  {evidenceResult?.error && (
+                    <p className="text-sm text-alert-600">{evidenceResult.error}</p>
+                  )}
+                  {evidenceResult && !evidenceResult.error && (
+                    <div className="space-y-3">
+                      {evidenceResult.summary && (
+                        <p className="text-xs text-surface-500">
+                          签到有效 {evidenceResult.summary.has_valid_sign ? '是' : '否'} ·
+                          参会 {evidenceResult.summary.guest_count || 0} ·
+                          签到 {evidenceResult.summary.sign_count || 0} ·
+                          知情书 {evidenceResult.summary.know_book_count || 0}
+                        </p>
+                      )}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div className="p-3 rounded-lg bg-surface-50">
+                          <p className="metric-label">参会人</p>
+                          <p className="text-lg font-bold">{evidenceResult.guests?.length || 0}</p>
+                          {(evidenceResult.guests || []).slice(0, 5).map((g: any) => (
+                            <p key={g.guest_id} className="text-xs text-surface-500">
+                              {g.doctor_name} · {g.meet_role || '-'} · {g.is_sign === 'YES' ? '已签' : '未签'}
+                            </p>
+                          ))}
+                        </div>
+                        <div className="p-3 rounded-lg bg-surface-50">
+                          <p className="metric-label">签到记录</p>
+                          <p className="text-lg font-bold">{evidenceResult.signs?.length || 0}</p>
+                          {(evidenceResult.signs || []).slice(0, 5).map((s: any) => (
+                            <p key={s.sign_id} className="text-xs text-surface-500">
+                              {s.address || '—'} · {s.valid ? '有效' : '无效'}
+                            </p>
+                          ))}
+                        </div>
+                        <div className="p-3 rounded-lg bg-surface-50">
+                          <p className="metric-label">知情书</p>
+                          <p className="text-lg font-bold">{evidenceResult.know_books?.length || 0}</p>
+                          {(evidenceResult.know_books || []).slice(0, 5).map((k: any) => (
+                            <p key={k.book_id} className="text-xs text-surface-500">
+                              #{k.seq_no} · {k.file_url}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>

@@ -9,6 +9,22 @@ from models.budget import (
     ControlMode,
 )
 from models.expense import ExpenseReport, InvoiceRecord, BudgetWriteOff
+from models.expense_ops import (
+    ExpenseLine,
+    ExpenseSettlement,
+    InvoiceMerchantProfile,
+    OcrRun,
+    OcrImage,
+    ThreeFlowMismatch,
+    ThreeFlowWhitelist,
+)
+from models.budget_version import (
+    BudgetVersion,
+    BudgetVersionItem,
+    BudgetAdjustmentRecord,
+    BudgetReason,
+)
+from models.rule_catalog import RuleCatalogVersion, DecisionRulePin
 from models.decision import DecisionRecordRow
 from models.approval import ApprovalRecord
 from models.alert import AlertRecord, AlertClosure, AlertEscalation
@@ -47,6 +63,19 @@ __all__ = [
     "ExpenseReport",
     "InvoiceRecord",
     "BudgetWriteOff",
+    "ExpenseLine",
+    "ExpenseSettlement",
+    "InvoiceMerchantProfile",
+    "OcrRun",
+    "OcrImage",
+    "ThreeFlowMismatch",
+    "ThreeFlowWhitelist",
+    "BudgetVersion",
+    "BudgetVersionItem",
+    "BudgetAdjustmentRecord",
+    "BudgetReason",
+    "RuleCatalogVersion",
+    "DecisionRulePin",
     "DecisionRecordRow",
     "ApprovalRecord",
     "AlertRecord",

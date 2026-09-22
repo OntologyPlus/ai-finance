@@ -324,6 +324,36 @@ export const budgetApi = {
       body: JSON.stringify(data || {}),
     }),
 
+  getVersions: (budgetYear?: number) =>
+    request<ApiResponse<any>>(`/api/budgets/versions${budgetYear ? `?budget_year=${budgetYear}` : ''}`),
+
+  getVersion: (versionId: string) =>
+    request<ApiResponse<any>>(`/api/budgets/versions/${versionId}`),
+
+  snapshotVersion: (data?: { budget_year?: number; change_summary?: string; freeze?: boolean }) =>
+    request<ApiResponse<any>>('/api/budgets/versions/snapshot', {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+
+  freezeVersion: (versionId: string) =>
+    request<ApiResponse<any>>(`/api/budgets/versions/${versionId}/freeze`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  getAdjustments: () =>
+    request<ApiResponse<any>>('/api/budgets/adjustments'),
+
+  applyAdjustment: (adjustmentId: string) =>
+    request<ApiResponse<any>>(`/api/budgets/adjustments/${adjustmentId}/apply`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+
+  getReasons: (targetId?: string) =>
+    request<ApiResponse<any>>(`/api/budgets/reasons${targetId ? `?target_id=${targetId}` : ''}`),
+
   // ─── 预算健康度（v4.0 新增） ───────────────────────────
   getHealthScore: (period: string) =>
     request<ApiResponse<any>>(`/api/budget/health-score?period=${period}`),
@@ -426,6 +456,18 @@ export const expenseApi = {
 
   getApprovalStatus: (expenseId: string) =>
     request<ApiResponse<any>>(`/api/approvals/${expenseId}`),
+
+  getOperational: (expenseId: string) =>
+    request<ApiResponse<any>>(`/api/expenses/${expenseId}/operational`),
+
+  checkThreeFlow: (expenseId: string, data?: Record<string, unknown>) =>
+    request<ApiResponse<any>>(`/api/expenses/${expenseId}/three-flow/check`, {
+      method: 'POST',
+      body: JSON.stringify(data || {}),
+    }),
+
+  listThreeFlow: (status?: string) =>
+    request<ApiResponse<any>>(`/api/expenses/three-flow${status ? `?status=${status}` : ''}`),
 };
 
 export const approvalApi = {
@@ -768,6 +810,25 @@ export const dashboardApi = {
 
   getSupportedRoles: () =>
     request<ApiResponse<{ supported_roles: string[] }>>('/api/dashboard/role-supported'),
+
+  getDecisionBrief: (period?: string) =>
+    request<ApiResponse<{
+      period: string;
+      generated_at?: string;
+      items: Array<{
+        id: string;
+        rank: number;
+        source: string;
+        severity: 'red' | 'yellow' | 'orange';
+        title: string;
+        money_label: string;
+        money_value: number;
+        action: string;
+        why: string;
+        href: string;
+        secondary_href?: string;
+      }>;
+    }>>(`/api/dashboard/decision-brief${buildQuery({ period })}`),
 };
 
 export const settingsApi = {
@@ -1204,6 +1265,9 @@ export const hcpApi = {
 
   riskAnalysis: (hcpId: string, period: string) =>
     request<ApiResponse<any>>(`/api/hcp/${hcpId}/risk?period=${period}`),
+
+  getEvidence: (hcpId: string) =>
+    request<ApiResponse<any>>(`/api/hcp/${hcpId}/evidence`),
 };
 
 // ── 管线管理 ──────────────────────────────────────────

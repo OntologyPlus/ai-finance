@@ -31,9 +31,11 @@ from api.business_review import router as business_review_router
 from api.insights import router as insights_router
 from api.lineage import router as lineage_router
 from api.decisions import router as decisions_router
+from api.operational import router as operational_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, prefix="/api", tags=["health"])
+api_router.include_router(operational_router, prefix="/api", tags=["operational"])
 api_router.include_router(budget_router, prefix="/api", tags=["budget"])
 api_router.include_router(expense_router, prefix="/api", tags=["expense"])
 api_router.include_router(approval_router, prefix="/api", tags=["approval"])

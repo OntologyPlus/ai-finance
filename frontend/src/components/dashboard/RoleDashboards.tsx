@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ChevronRight,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { dashboardApi } from '../../services/api';
 
 // ─── 类型定义 ────────────────────────────────────
@@ -130,6 +131,7 @@ function KpiCard({
 // ─── CFO 视图组件 ────────────────────────────────────
 
 export function CFODashboard({ period }: { period?: string }) {
+  const navigate = useNavigate();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -162,9 +164,18 @@ export function CFODashboard({ period }: { period?: string }) {
         <KpiCard label="战略举措" value={kpis.active_strategies} color="finance" icon={<Target size={14} className="text-finance-500" />} />
       </div>
 
-      {/* 9 卡九宫格 */}
+      {/* 9 卡九宫格 — 活诊断信号灯 */}
       <div className="glass-card p-4">
-        <h3 className="text-sm font-semibold text-finance-700 mb-3">📊 9 卡九宫格（诊断信号灯）</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-finance-700">9 卡九宫格（活诊断）</h3>
+          <button
+            type="button"
+            onClick={() => navigate('/analysis')}
+            className="text-[10px] text-finance-500 hover:text-finance-700 flex items-center gap-0.5"
+          >
+            看证据 <ChevronRight size={12} />
+          </button>
+        </div>
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(cards).map(([key, card]: [string, any]) => {
             const statusColors: Record<string, string> = {
@@ -178,16 +189,26 @@ export function CFODashboard({ period }: { period?: string }) {
               red: '🔴',
             };
             return (
-              <div
+              <button
+                type="button"
                 key={key}
+                title={card.reason || card.label}
+                onClick={() => navigate('/analysis')}
                 className={clsx(
-                  'p-3 rounded-lg border text-center text-xs',
+                  'p-3 rounded-lg border text-left text-xs hover:shadow-sm transition-shadow',
                   statusColors[card.status] || statusColors.green
                 )}
               >
-                <span className="text-base mr-1">{statusIcons[card.status]}</span>
-                <span className="font-medium">{card.label}</span>
-              </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-base">{statusIcons[card.status]}</span>
+                  <span className="font-medium">{card.label}</span>
+                </div>
+                {card.reason ? (
+                  <p className="mt-1 text-[10px] leading-snug text-current/80 line-clamp-2">
+                    {card.reason}
+                  </p>
+                ) : null}
+              </button>
             );
           })}
         </div>
